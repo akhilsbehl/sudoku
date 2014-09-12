@@ -15,6 +15,7 @@
 #include <stdio.h> 
 #include <ctype.h> 
 #include <string.h> 
+#include <stdlib.h> 
 /*3:*/
 #line 76 "./knuth-dance.w"
 
