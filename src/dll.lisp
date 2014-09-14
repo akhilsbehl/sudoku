@@ -19,8 +19,13 @@
   (length 0))
 
 (defun join-dcons (a b)
-  (setf (dcons-left b) a)
-  (setf (dcons-right a) b))
+  (cond
+    ((and (null a) (null b)) nil)
+    ((null a) (setf (dcons-left b) nil))
+    ((null b) (setf (dcons-right a) nil))
+    (t (progn
+         (setf (dcons-left b) a)
+         (setf (dcons-right a) b)))))
 
 (defun make-dll-from-vals (&rest vals)
   (cond ((null (car vals)) (make-dll))
@@ -51,24 +56,24 @@
          ((null this) ,bdll)
          (setf (dcons-value this) (funcall ,func (dcons-value this)))))))
 
-(defmacro insert-dll (adll at-dcons new-dcons &key (after t))
-  ;;  vn := value-name.
-  ;;; Limitation: Whatever form goes into the value for after must evaluate to
-  ;;; the same truth value every time. Don't know how to fix this using gensym.
-  (let ((adll-vn (gensym))
-        (at-dcons-vn (gensym))
-        (new-dcons-vn (gensym))
-        (at-left (gensym))
-        (at-right (gensym)))
-    `(let* ((,adll-vn ,adll)
-            (,at-dcons-vn ,at-dcons)
-            (,new-dcons-vn ,new-dcons)
-            (,at-left ,(if after at-dcons-vn `(dcons-left ,at-dcons-vn)))
-            (,at-right ,(if after `(dcons-right ,at-dcons-vn) at-dcons-vn)))
-       (join-dcons ,at-left ,new-dcons-vn)
-       (join-dcons ,new-dcons-vn ,at-right)
-       (incf (dll-length ,adll-vn))
-       ,adll-vn)))
+(defun insert-dll (new-dcons in-dll &optional (at-dcons nil) (after t))
+  (cond ((null (dll-head in-dll)) ; empty list
+         (progn
+           (setf (dll-head in-dll) new-dcons)
+           (setf (dll-tail in-dll) new-dcons)
+           (incf (dll-length in-dll))))
+        (t (cond (after ; insert after.
+                   (let ((reset (null (dcons-right at-dcons))))
+                     (join-dcons new-dcons (dcons-right at-dcons))
+                     (join-dcons at-dcons new-dcons)
+                     (incf (dll-length in-dll))
+                     (if reset (setf (dll-tail in-dll) new-dcons))))
+                 (t ; insert before.
+                   (let ((reset (null (dcons-left at-dcons))))
+                     (join-dcons (dcons-left at-dcons) new-dcons)
+                     (join-dcons new-dcons at-dcons)
+                     (incf (dll-length in-dll))
+                     (if reset (setf (dll-head in-dll) new-dcons))))))))
 
 #|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 |                                  TESTS                                  |
@@ -94,7 +99,10 @@
   #'(lambda (x) (mapcar #'(lambda (bdll) (expt bdll 2)) x))
   myvalsdll)
 
-(defvar new1 (make-dcons :value "This is the test value 1."))
-(defvar new2 (make-dcons :value "This is the test value 2."))
-(insert-dll myvalsdll (dll-head myvalsdll) new1 :after t)
-(insert-dll myvalsdll (dll-tail myvalsdll) new2 :after nil)
+(defvar empty (make-dll))
+(insert-dll (make-dcons :value "It used to be lonely here.") empty)
+
+(insert-dll (make-dcons :value "AfterHead.") myvalsdll (dll-head myvalsdll) t)
+(insert-dll (make-dcons :value "BeforeTail.") myvalsdll (dll-tail myvalsdll) nil)
+(insert-dll (make-dcons :value "BeforeHead") myvalsdll (dll-head myvalsdll) nil)
+(insert-dll (make-dcons :value "AfterTail") myvalsdll (dll-tail myvalsdll) t)
