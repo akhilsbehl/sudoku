@@ -44,12 +44,12 @@
 ;;; This idea for deep-copying lifted from here:
 ;;; http://rosettacode.org/wiki/Deepcopy#Common_Lisp
 ;;; Not sure if this is the best (or even correct) way for doing this.
-(defun deep-copy (x) (read-from-string (princ-to-string x)))
+(defun deep-copy (x) (read-from-string (prin1-to-string x)))
 
 ;;; Fashioned after base lisp's mapcar.
 ;;; Heeds Siebel's warnings against leaky abstractions.
 ;;; http://www.gigamonkeys.com/book/macros-defining-your-own.html
-(defmacro mapcar-dll (func adll)
+(defmacro mapvalues-dll (func adll)
   (let ((bdll (gensym)))
     `(let ((,bdll (deep-copy ,adll)))
        (do* ((this (dll-head ,bdll) (dcons-right this)))
@@ -75,6 +75,26 @@
                      (incf (dll-length in-dll))
                      (if reset (setf (dll-head in-dll) new-dcons))))))))
 
+(defun remove-dll (a-dcons in-dll)
+  (cond ((null (dcons-left a-dcons))
+         (progn
+           (setf (dll-head in-dll) (dcons-right a-dcons))
+           (decf (dll-length in-dll))))
+        ((null (dcons-right a-dcons))
+         (progn
+           (setf (dll-tail in-dll) (dcons-left a-dcons))
+           (decf (dll-length in-dll))))
+        (t (progn
+             (setf (dcons-right (dcons-left a-dcons)) (dcons-right a-dcons))
+             (setf (dcons-left (dcons-right a-dcons)) (dcons-left a-dcons))
+             (decf (dll-length in-dll))))))
+
+(defun nth-dll (n in-dll)
+  (cond ((or (< n 0) (>= n (dll-length in-dll))) nil)
+        (t (do ((i 0 (1+ i))
+                (this (dll-head in-dll) (dcons-right this)))
+             ((= i n) this)))))
+
 #|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 |                                  TESTS                                  |
 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||#
@@ -93,16 +113,24 @@
   (make-dll-from-vals
     '((1 2 3) (4 5 6) (7 8 9))))
 
-;(mapcar-dll #'1+ '(1 2 3)) ; Should throw an error.
-(mapcar-dll #'1+ myvals1dll)
-(mapcar-dll ; Do something complicated and also check for macro leaks.
+;(mapvalues-dll #'1+ '(1 2 3)) ; Should throw an error.
+(mapvalues-dll #'1+ myvals1dll)
+(mapvalues-dll ; Do something complicated and also check for macro leaks.
   #'(lambda (x) (mapcar #'(lambda (bdll) (expt bdll 2)) x))
   myvalsdll)
 
 (defvar empty (make-dll))
 (insert-dll (make-dcons :value "It used to be lonely here.") empty)
 
-(insert-dll (make-dcons :value "AfterHead.") myvalsdll (dll-head myvalsdll) t)
-(insert-dll (make-dcons :value "BeforeTail.") myvalsdll (dll-tail myvalsdll) nil)
-(insert-dll (make-dcons :value "BeforeHead") myvalsdll (dll-head myvalsdll) nil)
-(insert-dll (make-dcons :value "AfterTail") myvalsdll (dll-tail myvalsdll) t)
+(insert-dll (make-dcons :value "AfterHead.")
+            myvalsdll (dll-head myvalsdll) t)
+(insert-dll (make-dcons :value "BeforeTail.")
+            myvalsdll (dll-tail myvalsdll) nil)
+(insert-dll (make-dcons :value "BeforeHead")
+            myvalsdll (dll-head myvalsdll) nil)
+(insert-dll (make-dcons :value "AfterTail")
+            myvalsdll (dll-tail myvalsdll) t)
+
+(remove-dll (dll-head myvalsdll) myvalsdll)
+(remove-dll (dll-tail myvalsdll) myvalsdll)
+(remove-dll (nth-dll 2 myvalsdll) myvalsdll)
